@@ -1,7 +1,9 @@
 # Owner(s): ["module: tests"]
 
 import gc
+import os
 import sys
+import tempfile
 import unittest
 from contextlib import nullcontext
 
@@ -303,6 +305,34 @@ class TestAccelerator(TestCase):
                     t = torch.empty(16, dtype=dtype, device=acc)
                     t = t.to(reference_dtype)
                     t = t.to(dtype)
+
+    @unittest.skipIf(TEST_MPS, "MPS doesn't support exporting flamegraphs")
+    @unittest.skipIf(TEST_XPU, "XPU doesn't support exporting flamegraphs")
+    def test_save_memory_usage(self):
+        acc = torch.accelerator.current_accelerator()
+        mem_mod = getattr(torch.get_device_module(acc), "memory", None)
+        if (
+            mem_mod is None
+            or not hasattr(mem_mod, "_memory")
+            or not hasattr(mem_mod, "_segments")
+        ):
+            self.skipTest("Backend doesn't support exporting flamegraphs")
+
+        segment_file = os.path.join(tempfile.gettempdir(), "acc_segment_usage.svg")
+        memory_file = os.path.join(tempfile.gettempdir(), "acc_memory_usage.svg")
+        torch.accelerator.memory._record_memory_history(max_entries=10000)
+        a = torch.randn(128, 128, device=acc)
+        torch.accelerator.memory._save_segment_usage(segment_file)
+        torch.accelerator.memory._save_memory_usage(memory_file)
+        torch.accelerator.memory._record_memory_history(None)
+
+        self.assertTrue(os.path.exists(memory_file))
+        self.assertTrue(os.path.exists(segment_file))
+
+        if os.path.exists(memory_file):
+            os.remove(memory_file)
+        if os.path.exists(segment_file):
+            os.remove(segment_file)
 
 
 instantiate_device_type_tests(

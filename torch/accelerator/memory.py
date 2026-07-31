@@ -275,3 +275,29 @@ def _snapshot(device=None, augment_with_fx_traces: bool = False):
     return torch.cuda.memory._snapshot(
         device, augment_with_fx_traces=augment_with_fx_traces
     )
+
+
+def _save_segment_usage(filename="output.svg", snapshot=None):
+    acc = torch.accelerator.current_accelerator()
+    if acc is None:
+        return
+    mem_mod = getattr(torch.get_device_module(acc), "memory", None)
+    if mem_mod is None or not hasattr(mem_mod, "_segments"):
+        return
+    if snapshot is None:
+        snapshot = _snapshot()
+    with open(filename, "w") as f:
+        f.write(mem_mod._segments(snapshot))
+
+
+def _save_memory_usage(filename="output.svg", snapshot=None):
+    acc = torch.accelerator.current_accelerator()
+    if acc is None:
+        return
+    mem_mod = getattr(torch.get_device_module(acc), "memory", None)
+    if mem_mod is None or not hasattr(mem_mod, "_memory"):
+        return
+    if snapshot is None:
+        snapshot = _snapshot()
+    with open(filename, "w") as f:
+        f.write(mem_mod._memory(snapshot))
